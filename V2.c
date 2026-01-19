@@ -14,7 +14,6 @@ Entrada tabla[MAX_TABLA];
 int total = 0;
 
 /* ================= NORMALIZAR ================= */
-/* SOLO MAYUSCULAS (usuario ingresa sin tildes) */
 void normalizar(char *s) {
 	char out[MAX];
 	int j = 0;
@@ -26,6 +25,8 @@ void normalizar(char *s) {
 			out[j++] = c - 32;
 		else if (c >= 'A' && c <= 'Z')
 			out[j++] = c;
+		else if (c == ' ')
+			out[j++] = ' ';
 	}
 	out[j] = '\0';
 	strcpy(s, out);
@@ -96,11 +97,7 @@ int buscar_anterior(const char *p3) {
 	return codigo;
 }
 
-/* ================================================= */
-/* ===== FUNCIONES NUEVAS PARA SEGUNDO APELLIDO ==== */
-/* ================================================= */
-
-/* ¿Este apellido tiene rangos? */
+/* ================= FUNCIONES SEGUNDO APELLIDO ================= */
 int apellido_tiene_rangos(const char *apellido1) {
 	FILE *f = fopen("tabla_malaga_rangos.txt", "r");
 	if (!f) return 0;
@@ -110,8 +107,8 @@ int apellido_tiene_rangos(const char *apellido1) {
 	int codigo;
 	
 	while (fscanf(f, "%39s %c %c %d", ap, &ini, &fin, &codigo) == 4) {
-		normalizar(ap);                  // <- CLAVE
-		if (strcmp(ap, apellido1) == 0) { // apellido1 ya viene normalizado
+		normalizar(ap);
+		if (strcmp(ap, apellido1) == 0) {
 			fclose(f);
 			return 1;
 		}
@@ -131,7 +128,7 @@ int codigo_por_segundo_apellido(const char *apellido1, const char *apellido2) {
 	char letra = toupper((unsigned char)apellido2[0]);
 	
 	while (fscanf(f, "%39s %c %c %d", ap, &ini, &fin, &codigo) == 4) {
-		normalizar(ap); // <- CLAVE
+		normalizar(ap);
 		
 		ini = toupper((unsigned char)ini);
 		fin = toupper((unsigned char)fin);
@@ -147,7 +144,113 @@ int codigo_por_segundo_apellido(const char *apellido1, const char *apellido2) {
 	return -1;
 }
 
-/* ================= GENERAR NOTACION ================= */
+/* ================= PALABRAS A IGNORAR ================= */
+int es_palabra_ignorada(const char *palabra) {
+	const char *ignoradas[] = {
+		"DE", "DEL", "LA", "LAS", "EL", "LOS",
+		"Y", "E", "O", "U", "A", "AL", "EN",
+		"CON", "SIN", "POR", "PARA", NULL
+	};
+	
+	for (int i = 0; ignoradas[i] != NULL; i++) {
+		if (strcmp(palabra, ignoradas[i]) == 0)
+			return 1;
+	}
+	return 0;
+}
+
+/* ================= EXTRAER INICIALES (INSTITUCIONES) ================= */
+void extraer_iniciales(const char *nombre, char *iniciales) {
+	char copia[MAX];
+	strcpy(copia, nombre);
+	
+	iniciales[0] = '\0';
+	int primera = 1;
+	
+	char *token = strtok(copia, " ");
+	while (token != NULL) {
+		/* Verificar que no sea solo números */
+		int es_numero = 1;
+		for (int i = 0; token[i]; i++) {
+			if (!isdigit(token[i])) {
+				es_numero = 0;
+				break;
+			}
+		}
+		
+		/* Saltar primera palabra, números, y palabras ignoradas */
+		if (!primera && !es_numero && !es_palabra_ignorada(token)) {
+			char letra[2];
+			letra[0] = token[0];
+			letra[1] = '\0';
+			strcat(iniciales, letra);
+		}
+		
+		primera = 0;
+		token = strtok(NULL, " ");
+	}
+}
+
+/* ================= GENERAR NOTACION INSTITUCIONAL ================= */
+void generar_notacion_institucional(char *nombre) {
+	char primera_palabra[50];
+	char iniciales[20];
+	char pref[10];
+	int codigo;
+	
+	normalizar(nombre);
+	
+	/* Extraer primera palabra */
+	sscanf(nombre, "%s", primera_palabra);
+	
+	/* 1) PALABRA COMPLETA */
+	codigo = buscar_exacto(primera_palabra);
+	if (codigo != -1) {
+		printf("Primera palabra encontrada en la tabla\n");
+		extraer_iniciales(nombre, iniciales);
+		printf("Notacion: %s%d -> %s%d%s\n",
+			   inicial_malaga(primera_palabra), codigo,
+			   inicial_malaga(primera_palabra), codigo / 10, iniciales);
+		return;
+	}
+
+	/* 2) REDUCCION 5 → 4 → 3 → 2 */
+	for (int n = 5; n >= 2; n--) {
+		if ((int)strlen(primera_palabra) >= n) {
+			strncpy(pref, primera_palabra, n);
+			pref[n] = '\0';
+
+			codigo = buscar_exacto(pref);
+			if (codigo != -1) {
+				extraer_iniciales(nombre, iniciales);
+				printf("Notacion: %s%d -> %s%d%s\n",
+					   inicial_malaga(primera_palabra), codigo,
+					   inicial_malaga(primera_palabra), codigo / 10, iniciales);
+				return;
+			}
+		}
+	}
+
+	/* 3) INMEDIATO ANTERIOR + AUXILIAR */
+	strncpy(pref, primera_palabra, 3);
+	pref[3] = '\0';
+
+	codigo = buscar_anterior(pref);
+	if (codigo == -1) {
+		printf("Primera palabra NO esta en la tabla\n");
+		return;
+	}
+
+	int aux = valor_aux(primera_palabra[2]);
+	int codigo_completo = codigo * 10 + aux;
+	
+	extraer_iniciales(nombre, iniciales);
+	printf("Notacion: %s%d -> %s%d%s\n",
+		   inicial_malaga(primera_palabra), codigo_completo,
+		   inicial_malaga(primera_palabra), codigo_completo / 10, iniciales);
+}
+
+/* ================= GENERAR NOTACION (APELLIDOS) ================= */
 void generar_notacion(char *apellido) {
 	char pref[10];
 	int codigo;
@@ -177,7 +280,6 @@ void generar_notacion(char *apellido) {
 			int cod_rango = codigo_por_segundo_apellido(apellido, apellido2);
 			
 			if (cod_rango == -1) {
-				/* Seguridad: si no se encuentra rango, usar codigo base */
 				printf("Notacion: %s%d\n", inicial_malaga(apellido), codigo);
 			} else {
 				printf("Notacion: %s%d\n", inicial_malaga(apellido), cod_rango);
@@ -222,23 +324,50 @@ void generar_notacion(char *apellido) {
 		   inicial_malaga(apellido), codigo, aux);
 }
 
+void menu() {
+	printf("=====================================\n");
+	printf("   Generador de Notacion Malaga V3   \n");
+	printf("=====================================\n");
+	printf(" Opciones:\n");
+	printf(" 1. Modo Apellido\n");
+	printf(" 2. Modo Institucional\n");
+	printf(" 0. Salir\n");
+	printf("=====================================\n");
+}
+
 /* ================= MAIN ================= */
 int main() {
-	char apellido[50];
+	char entrada[200];
+	int opcion;
 
 	cargar_tabla();
 
 	do {
-		printf("\nIngrese apellido sin tildes (0 para salir): ");
-		fgets(apellido, sizeof(apellido), stdin);
-		apellido[strcspn(apellido, "\n")] = 0;
+		menu();
+		printf("\nSeleccione opcion: ");
+		scanf("%d", &opcion);
+		getchar(); // Limpiar buffer
 
-		if (strcmp(apellido, "0") == 0) {
+		if (opcion == 0) {
 			printf("\nSaliendo del programa...\n");
 			break;
 		}
 
-		generar_notacion(apellido);
+		if (opcion == 1) {
+			printf("\nIngrese apellido sin tildes: ");
+			fgets(entrada, sizeof(entrada), stdin);
+			entrada[strcspn(entrada, "\n")] = 0;
+			generar_notacion(entrada);
+		} 
+		else if (opcion == 2) {
+			printf("\nIngrese nombre institucional completo sin tildes: ");
+			fgets(entrada, sizeof(entrada), stdin);
+			entrada[strcspn(entrada, "\n")] = 0;
+			generar_notacion_institucional(entrada);
+		}
+		else {
+			printf("\nOpcion invalida\n");
+		}
 
 	} while (1);
 
