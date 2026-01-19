@@ -1,0 +1,16 @@
+# Ejecutables
+*.exe
+*.out
+*.bin
+
+# Objetos
+*.o
+*.obj
+
+# Temporales
+*.log
+*.tmp
+
+# IDEs
+.vscode/
+.idea/
