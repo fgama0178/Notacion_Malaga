@@ -99,6 +99,7 @@ def buscar_anterior(apellido: str) -> int:
             codigo = c
     return codigo
 
+
 # ================= RANGOS SEGUNDO APELLIDO =================
 def apellido_tiene_rangos(apellido1: str) -> bool:
     try:
@@ -181,14 +182,20 @@ def generar_notacion(apellido: str):
                 return
 
     # Prefijo 3 + auxiliar
+    
+
+    
     codigo = buscar_anterior(apellido)
     if codigo == -1:
         print("Apellido NO está en la tabla")
         return
-
-    aux = valor_aux(apellido[2])
+    if apellido.startswith("CH") or apellido.startswith("LL"):
+      aux = valor_aux(apellido[3])
+    else:
+      aux = valor_aux(apellido[2])
     print(f"Notacion: {inicial_malaga(apellido)}{codigo}{aux}")
 
+    
 
 # ================= MAIN =================
 def main():
