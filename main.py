@@ -11,7 +11,7 @@ def normalizar(texto: str) -> str:
     - Convierte a MAYÚSCULAS
     - Elimina tildes
     - Conserva Ñ
-    - Mantiene espacios
+    - Mantiene espacioDs
     """
     texto = texto.upper()
 
@@ -84,16 +84,20 @@ def buscar_exacto(pref: str) -> int:
             return c
     return -1
 
-
-def buscar_anterior(pref3: str) -> int:
+def buscar_anterior(apellido: str) -> int:
+    if apellido.startswith("CH") or apellido.startswith("LL"):
+      pref3 = apellido[:4]
+      limite = 4
+    else:
+      pref3 = apellido[:3]
+      limite = 3
     mejor = ""
     codigo = -1
     for p, c in tabla:
-        if len(p) == 3 and p < pref3 and p > mejor:
+        if len(p) == limite and p < pref3 and p > mejor:
             mejor = p
             codigo = c
     return codigo
-
 
 # ================= RANGOS SEGUNDO APELLIDO =================
 def apellido_tiene_rangos(apellido1: str) -> bool:
@@ -177,8 +181,7 @@ def generar_notacion(apellido: str):
                 return
 
     # Prefijo 3 + auxiliar
-    pref3 = apellido[:3]
-    codigo = buscar_anterior(pref3)
+    codigo = buscar_anterior(apellido)
     if codigo == -1:
         print("Apellido NO está en la tabla")
         return
